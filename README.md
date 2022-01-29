@@ -1,7 +1,7 @@
 PivotRepair
 =====
 
-Here is the source code of `PivotRepair` prototype system described in our paper submitted to infocom.
+Here is the source code of `PivotRepair` prototype system described in our paper submitted to ICDCS 2022.
 
 Preparation
 ----
@@ -72,9 +72,9 @@ This file describes the coding scheme info. The keys and the values are separate
 | nodes_num       | Total nodes numbers exclude the master node.                 |
 | each_times      | The times that needs to be test each situation.              |
 | algs            | The repair path algorithms that needs to be tested.          |
-                  |   ('r' for RP, 'f' for PivotRepair and 'p' for PPT.)         |
+|   ('r' for RP, 'f' for PivotRepair and 'p' for PPT.)         |
 | nks             | The ns and ks that need to be tested.                        |
-                  |   Note that n + k should be smaller than nodes_num.          |
+|   Note that n + k should be smaller than nodes_num.          |
 | size            | ChunkSize (bytes).                                           |
 | psize           | SliceSize (bytes).                                           |
 
@@ -96,14 +96,14 @@ psize = 32768
 - To run the **prototype system**, users should run the `run.sh` (at the root directory of repository),
 
   ```bash
-  $  cd ftp_repair
+  $  cd PivotRepair
   $  ./run.sh
   ```
 
 - To interrupt and stop the **prototype system**, users should run the `down.sh` (at the root directory of repository),
 
   ```bash
-  $  cd ftp_repair
+  $  cd PivotRepair
   $  ./down.sh
   ```
 
