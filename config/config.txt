@@ -1,0 +1,12 @@
+/root/ftp_repair/config/addresses.txt
+/root/ftp_repair/config/bandwidth.txt
+/root/ftp_repair/config/test_task.txt
+/root/ftp_repair/files/results.txt
+localhost 10086
+5 3 3
+10 67108864
+/root/ftp_repair/files/read_file
+/root/ftp_repair/files/write_file
+.txt
+2 0
+6710886410
