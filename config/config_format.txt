@@ -1,0 +1,19 @@
+{size} {psize}
+
+{config_dir + address_file}
+{config_dir + bandwidth_file}
+
+{recv_thr_num} {comp_thr_num} {proc_thr_num}
+{mem_num} {mem_size}
+
+{config_dir + algorithm_file}
+{config_dir + task_file}
+{data_file_dir + result_file}
+
+{data_file_dir}
+{rw_file_len} {rw_file_fill}
+{rfile_end}
+{wfile_end}
+
+{if_only_print_net_constrain}
+{eth_name}

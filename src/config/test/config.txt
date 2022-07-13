@@ -1,10 +1,10 @@
-64 4
+67108864 32768
 
 config/addresses.txt
-config/bandwidths.txt
+config/bandwidth.txt
 
-20 10 40
-30 67108864
+6 3 10
+1024 32768
 
 config/algorithms.txt
 config/tasks.txt

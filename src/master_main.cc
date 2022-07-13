@@ -1,88 +1,93 @@
+#include <fstream>
 #include <iostream>
-#include <memory>
 #include <sys/time.h>
 #include <thread>
 
-#include "master_node.hh"
-#include "config_reader.hh"
-#include "address_handler.hh"
+#include "config/address_reader.hh"
+#include "config/alg_loader.hh"
+#include "config/config_reader.hh"
+#include "task/controller.hh"
 
-#include "task_getter.hh"
+using exr::Count;
+using exr::Time;
 
-int main()
+using exr::ConfigReader;
+using exr::AddressReader;
+using exr::Controller;
+using exr::AlgLoader;
+
+/* The main function of the master node */
+int main(int argc, char *argv[])
 {
-  //initialization
-  std::cout << "This is the master node\n"
-            << "loading the config file..." << std::endl;
-  ConfigReader *pcr = new ConfigReader("/root/ftp_repair/config/config.txt");
+  //Load configurations
+  std::cout << "This is the master node" << std::endl
+            << "Loading config files..." << std::endl;
+  ConfigReader cr;
+  cr.Load("config/config.txt", 0);
 
-  std::cout << "Getting address infomation..." << std::endl
-            << "connecting to all the nodes..." << std::endl
-            << "and waiting nodes to be ready" << std::endl;
-  MasterNode *pmn = new MasterNode(pcr->get_aconf_addr());
-  std::cout << "All nodes get ready" << std::endl;
+  //Get ip addresses and ports
+  AddressReader ar;
+  ar.Load(cr.get_addr_conf_path());
 
-  std::cout << "Connecting to the test controller..." << std::endl;
-  TaskGetter *ptg = new TaskGetter(pcr->get_tc_addr(), pcr->get_tc_port(), pcr->get_tfile_addr(), pcr->get_wdfile_addr());
-  std::cout << "Connected! Start getting test tasks!\n"
-            << std::endl;
+  //Get ready for algorithms
+  AlgLoader al(cr.get_task_file(), cr.get_bw_conf_path());
+  al.Open(cr.get_algorithm_file());
 
-  //doing tasks
-  double global_min, compute_time, repair_time;
-  int i = 0;
-  while (ptg->loaded_new())
-  {
-    //get a task
-    int err_cnt = ptg->get_err_cnt();
-    int *frag_err_list = ptg->get_frag_err_list();
-    ssize_t size = ptg->get_request_size();
-    ssize_t psize = ptg->get_piece_size();
-    char build_alg = ptg->get_build_alg();
-    if (ptg->need_load_bw()) {
-      pmn->load_bandwidth(pcr->get_bw_addr());
-    }
-
-    //start task
-    ++i;
-    std::cout << "The Task " << i << " begins" << std::endl;
-    struct timeval start_time, end_time;
-
-    //build path
-    std::cout << "building repair path..." << std::endl;
-    gettimeofday(&start_time, nullptr);
-    global_min = pmn->build_repair_path(frag_err_list[0], build_alg);
-    gettimeofday(&end_time, nullptr);
-    compute_time = (end_time.tv_sec - start_time.tv_sec) * 1e6 +
-                   (end_time.tv_usec - start_time.tv_usec);
-    std::cout << "repair path built" << std::endl;
-
-    //repair
-    if (global_min > pcr->get_min_global_min()) {
-      std::cout << "start repairing" << std::endl;
-      gettimeofday(&start_time, nullptr);
-      pmn->start_repairing(i, frag_err_list, err_cnt, size, psize);
-      gettimeofday(&end_time, nullptr);
-      repair_time = (end_time.tv_sec - start_time.tv_sec) * 1e6 +
-                    (end_time.tv_usec - start_time.tv_usec);
-    } else {
-      repair_time = 0;
-    }
-
-    ptg->store_result(global_min, compute_time, repair_time);
-    //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    std::cout << global_min << " " << compute_time << " " << repair_time << std::endl;
-    std::cout << "The Task " << i << " finished\n"
+  //Open the result file
+  std::ofstream result_file(cr.get_result_file());
+  if (!result_file.is_open()) {
+    std::cerr << "Open result file error: " << cr.get_result_file()
               << std::endl;
+    exit(-1);
   }
 
-  //closing
-  std::cout << "closing..." << std::endl;
-  pmn->close();
-  std::cout << "all nodes closed" << std::endl;
+  //Create the controller and connect to other nodes
+  std::cout << "Creating and initializing the controller..." << std::endl;
+  Controller con(ar.get_total(), cr.get_size(), cr.get_psize());
+  con.Connect(ar.GetAddresses());
+  std::cout << "Connected" << std::endl << std::endl;
 
-  //clearing
-  std::cout << "shutting down..." << std::endl;
-  delete pcr;
-  delete pmn;
-  delete ptg;
+  //Run tasks
+  struct timeval time_a, time_b, time_c, time_d;
+  exr::BwType capacity;
+  while (al.LoadNext()) {
+    //Load and start a new algorithm's tasks
+    con.ChangeAlg(al.GetAlg(), al.GetArgs(), al.GetPath());
+    con.ReloadNodeBandwidth(ar.get_total());
+    std::cout << "start testing alg " << al.GetAlg() << std::endl;
+    while (true) {
+      //Calculate task route
+      gettimeofday(&time_a, nullptr);
+      if (!con.GetTasks()) break;
+      gettimeofday(&time_b, nullptr);
+
+      //Change bandwidth
+      if (al.GetAlg() != 't') con.SetNewNodeBandwidth(ar.get_total());
+      capacity = con.GetCapacity();
+
+      //Repair
+      gettimeofday(&time_c, nullptr);
+      auto max_task_num = con.DoTaskGroups(ar.get_total());
+      gettimeofday(&time_d, nullptr);
+
+      //Calculate times write to the result
+      Time compute_time = (time_b.tv_sec - time_a.tv_sec) * 1e6 +
+                          (time_b.tv_usec - time_a.tv_usec),
+           repair_time = (time_d.tv_sec - time_c.tv_sec) * 1e6 +
+                         (time_d.tv_usec - time_c.tv_usec);
+      result_file << capacity << " "
+                  << compute_time << " "
+                  << repair_time << " "
+                  << max_task_num << std::endl;
+    }
+    std::cout << "\tfinished alg " << al.GetAlg() << std::endl << std::endl;
+  }
+
+  //Finished and closing
+  std::cout << "All the tasks finished, sending closing signal to the nodes"
+            << std::endl;
+  result_file.close();
+  con.Close(ar.get_total());
+  std::cout << "Closed." << std::endl;
+  return 0;
 }

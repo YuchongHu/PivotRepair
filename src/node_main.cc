@@ -1,50 +1,57 @@
 #include <iostream>
-#include <thread>
-#include <memory>
 
-#include "config_reader.hh"
-#include "address_handler.hh"
-#include "node_repairer.hh"
+#include "config/address_reader.hh"
+#include "config/bandwidth_solver.hh"
+#include "config/config_reader.hh"
+#include "repair/repairer.hh"
+#include "util/typedef.hh"
 
+using exr::Count;
+
+using exr::ConfigReader;
+using exr::AddressReader;
+using exr::BandwidthSolver;
+using exr::Repairer;
+
+/* The main function of each nodes */
 int main(int argc, char *argv[])
 {
+  //Get the node id from input
   if (argc != 2 || atoi(argv[1]) <= 0) {
-    std::cout << "bad args" << std::endl;
+    std::cerr << "bad args" << std::endl;
     exit(-1);
   }
-  uint16_t id = atoi(argv[1]);
+  Count id = atoi(argv[1]);
 
-  std::cout << "loading the config file..." << std::endl;
-  ConfigReader *cr = new ConfigReader("/root/ftp_repair/config/config.txt");
+  //Load configurations
+  std::cout << "This is node " << id << std::endl
+            << "Loading config files..." << std::endl;
+  ConfigReader cr;
+  cr.Load("config/config.txt", id);
 
-  std::cout << "getting address infomation..." << std::endl;
-  AddressHandler *ah = new AddressHandler(cr->get_aconf_addr());
+  //Get ip addresses and ports
+  AddressReader ar;
+  ar.Load(cr.get_addr_conf_path());
 
-  std::cout << "starting the node repairer..." << std::endl;
-  NodeRepairer *np = new NodeRepairer(cr->get_din_num(), cr->get_prc_num(), cr->get_out_num(),
-                                      id,
-                                      ah->get_k(), ah->get_m(), ah->get_node_addresses(),
-                                      cr->get_mem_num(), cr->get_mem_size(),
-                                      cr->get_read_addr(id), cr->get_write_addr(id),
-                                      cr->get_max_load_size());
+  //Create the repairer
+  std::cout << "Creating and initializing the repairer..." << std::endl;
+  Repairer nr(id, ar.get_total(),
+              cr.get_read_file(), cr.get_write_file(),
+              cr.get_mem_num(), cr.get_mem_size(),
+              cr.get_bw_conf_path(), cr.get_eth_name(),
+              cr.get_if_print(), cr.get_recv_thr_num(),
+              cr.get_comp_thr_num(), cr.get_proc_thr_num());
 
-  std::cout << "connecting to other nodes..." << std::endl;
-  np->start();
-
-  std::cout << "the node " << id << " is started" << std::endl;
-
-  //waiting the node to receive a shut down message and shut down
-  while (!np->is_shut_down())
-  {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  }
-  std::cout << "received a shut down message\n\t--the node has already shut down"
+  //Connect to other nodes
+  std::cout << "Connecting to the other nodes and starting to repair"
             << std::endl;
+  nr.Prepare(ar.GetAddresses());
 
-  //clearing...
-  delete cr;
-  delete ah;
-  delete np;
 
+  //Wait for the tasks to be finished
+  nr.WaitForFinish();
+  std::cout << std::endl
+            << "Received the closing signal, all tasks compeleted"
+            << std::endl;
   return 0;
 }

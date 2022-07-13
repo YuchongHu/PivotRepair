@@ -1,0 +1,19 @@
+group_num
+
+task_num
+
+task_id size psize
+node_num
+node_id tar_id src_num src1 ...
+node_id tar_id src_num src1 ...
+
+...
+
+task_num
+
+task_id size psize
+node_num
+node_id tar_id src_num src1 ...
+node_id tar_id src_num src1 ...
+
+...

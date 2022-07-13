@@ -1,41 +1,84 @@
-SRC_DIR := src
-INC_DIR := include
-OBJ_DIR := build/obj
-BIN_DIR := build/bin
+# This makefile automatically grabs the files in $(SRC),\
+	builds the dependencies which saved in $(DEP),\
+	compiles the grabbed source files into object files in $(OBJ),\
+	and finally links the object files and outputs:\
+		main to $(BIN) and test main to $(TEST).
 
+# To use this makefile needs:\
+	named the source files with extension: .cc\
+	the source main files' names end with: _main.cc\
+	the source test files' names end with: _test.cc
+
+# -- File Directories --
+SRC := src
+OBJ := obj
+BIN := bin
+
+con := -
+DEP := $(OBJ)/dep
+TEST := $(BIN)/test
+
+# -- Compile Configurations --
 CXX := g++
-INCFLAGS := -I$(INC_DIR)
-CXXFLAGS := -pthread -lsockpp -lisal
+CXXFLAGS := -std=c++14 -I$(SRC) -Wall -O3
+LDFLAGS := -lpthread -lsockpp -lisal -O3
 
-ALLFILES := $(OBJ_DIR)/connection_solver.o
-ALLFILES += $(OBJ_DIR)/socket_solver.o
-ALLFILES += $(OBJ_DIR)/local_file_solver.o
+# -- Personal File Type Change Functions --
+cc_to_o = $(patsubst $(SRC)$(con)%.cc,$(OBJ)/%.o,\
+		  $(subst /,$(con),$(1)))
 
-ALLFILES += $(OBJ_DIR)/config_reader.o
-ALLFILES += $(OBJ_DIR)/address_handler.o
+o_to_cc = $(subst $(con),/,\
+		  $(patsubst $(OBJ)%.o,$(SRC)%.cc,$(1)))
 
-ALLFILES += $(OBJ_DIR)/node_connector.o
-ALLFILES += $(OBJ_DIR)/memory_pool.o
+# -- File Lists --
+CCFS := $(shell find $(SRC) -name "*.cc")
+DEPS := $(CCFS:$(SRC)%.cc=$(DEP)%.d)
 
-ALLFILES += $(OBJ_DIR)/calculator.o
-ALLFILES += $(OBJ_DIR)/compute_tool.o
+OBJS := $(call cc_to_o,$(CCFS))
+MAINS := $(filter %_main,$(OBJS:$(OBJ)%.o=$(BIN)%))
+TESTS := $(filter %_test,$(OBJS:$(OBJ)%.o=$(TEST)%))
+SUPPORTS := $(filter-out %_main.o %_test.o,$(OBJS))
 
-ALLFILES += $(OBJ_DIR)/bandwidth_info.o
-ALLFILES += $(OBJ_DIR)/tree_builder.o
+# -- Rules --
+all: $(MAINS)
+	@echo All targets exist:$(MAINS:%="\n\t"%)
+	@echo Make Ended.
 
-ALLFILES += $(OBJ_DIR)/node_repairer.o
-ALLFILES += $(OBJ_DIR)/master_node.o
-ALLFILES += $(OBJ_DIR)/task_getter.o
+ifneq ($(MAKECMDGOALS), clean)
+-include $(DEPS)
+endif
 
+$(BIN)/%_main: $(OBJ)/%_main.o $(SUPPORTS)
+	@echo "    "Linking file: $@
+	@mkdir -p $(BIN)
+	@$(CXX) $^ -o $@ $(LDFLAGS)
 
-all : $(BIN_DIR)/node_main $(BIN_DIR)/master_main
+$(TEST)/%: $(OBJ)/%.o $(SUPPORTS)
+	@echo "    "Linking Test file: $@
+	@mkdir -p $(TEST)
+	@$(CXX) $^ -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cc
-	$(CXX) $(INCFLAGS) -c $< -o $@ -O3
+$(OBJ)/%.o:
+	@echo --Compiling file: $@
+	@mkdir -p $(OBJ)
+	@$(CXX) $(CXXFLAGS) -c $(call o_to_cc,$@) -o $@
 
-$(BIN_DIR)/%_main : $(OBJ_DIR)/%_main.o $(ALLFILES)
-	$(CXX) $^ -o $@ $(CXXFLAGS) -O3
+$(filter-out %_main.d %_test.d,$(DEPS)): $(DEP)/%.d: $(SRC)/%.hh
+$(DEP)/%.d: $(SRC)/%.cc
+	@echo Building dependency of file: $<
+	@mkdir -p $(@D)
+	@$(CXX) $(CXXFLAGS) -MM $< -MT $(call cc_to_o,$<) -MF $@
 
+# -- Test Files --
+.PHONY: test
+test: $(TESTS)
+	@echo All test files exist:$(TESTS:%="\n\t"%)
+	@echo Make Ended.
+
+# -- Clean Rule --
+.PRECIOUS: $(OBJ)/*
 .PHONY: clean
 clean:
-	-rm build/obj/*.o build/bin/* -f
+	@echo Removing directories: $(OBJ)/ and $(BIN)/...
+	@rm -rf $(OBJ) $(BIN)
+	@echo Finished cleaning.
