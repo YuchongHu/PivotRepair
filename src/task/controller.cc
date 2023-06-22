@@ -3,8 +3,6 @@
 #include <sys/time.h>
 #include <thread>
 
-#include "task/algorithm/best_flow.hh"
-#include "task/algorithm/eva_pipe.hh"
 #include "task/algorithm/ftp_repair.hh"
 #include "task/algorithm/ppr.hh"
 #include "task/task_reader.hh"
@@ -31,12 +29,6 @@ void Controller::ChangeAlg(const Alg &alg, const Count *args,
                            const Path &path) {
   if (alg == 't') {
     ptg_ = pTaskGetter(new TaskReader(path));
-  } else if (alg == 'b') {
-    ptg_ = pTaskGetter(new BestFlow(
-            args[0], args[1], args[2], args[3] == 1, args[4] * 1000, path));
-  } else if (alg == 'v') {
-    ptg_ = pTaskGetter(new EvaPipe(
-            args[0], args[1], args[2], args[3], path));
   } else if (alg == 'j') {
     ptg_ = pTaskGetter(new PPR(
             args[0], args[1], args[2], args[3] * 1000, path));
